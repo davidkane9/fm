@@ -21,15 +21,18 @@ x.1 <- read_stata("nlsfw1icp.dta.zip") %>%
   zap_formats() %>% 
   zap_labels() %>% 
   select(caseid, la0102, doc0102) %>% 
+  
+  ## More and more I think that this school information should be hard-coded
+  ## against w1coll, as we do with Howard below. We can hand-inspect the values
+  ## of la102 and so on, but the ties make it bad to use this variable as an
+  ## assignment. (More than one school can be the 3rd rated LAC by US News in a
+  ## given year.)
+  
   mutate(school = case_when(la0102 == "1" ~ "Williams",
                             la0102 == "3" ~ "Swarthmore",
                             doc0102 == "1" ~ "Princeton",
                             doc0102 == "2" ~ "Yale")) %>% 
   select(-la0102, -doc0102)
-
-## Absurd hack needed to deal with weird Stata attributes
-
-## attributes(x.1$caseid) <- NULL
 
 ## Deal with school average SAT data, which was not distributed with the other
 ## NLSF data and comes to us directly from Douglas Massey.
@@ -41,12 +44,16 @@ x.id.cross <- read_excel("Case ID Crosswalk.xlsx", col_names = FALSE) %>%
   select(- X__1) %>% 
   rename(case = X__2, caseid = X__3)
 
+## No row for 9277726 in x.id.cross. Argg! I was fooled because x.id.cross does
+## have 3,924 rows. If we assume that the case in x.col which has no match in
+## x.id.cross is the missing one, we can just assign 9277726 to w1coll 26. So,
+## we do. When we left_join on x.col, we lose the caseid for 9277726 but we know
+## that we w1coll is 26.
+
 x.col <- 
   left_join(x.col, x.id.cross, by = "case") %>% 
-  select(caseid, w1coll)
-
-## Seems to be a problem that caseid 9277726 does not appear in this data,
-## causing problems later when we try to figure out her school.
+  select(caseid, w1coll) %>% 
+  mutate(caseid = ifelse(is.na(caseid), 9277726, caseid))
 
 x.sat <- read_excel("School SAT Averages.xlsx") %>% 
   rename(w1coll = 'School ID', school_SAT = "Ave SAT")
@@ -71,6 +78,7 @@ x <- x %>%
     ! is.na(school) ~ school, 
     is.na(school) & ! is.na(w1coll) ~ paste("School", w1coll, sep = "."),
     is.na(w1coll) &   is.na(w1coll) ~ as.character(NA))) %>% 
+  mutate(college = ifelse(college == "School.9", "Howard", college)) %>% 
   select(-school, -w1coll)
 
 ## Does it seem sensible that there are schools with more than 300 students in
@@ -127,9 +135,8 @@ x.5 <- read_stata("nlsfw1p.dta.zip") %>%
          race = factor(w1qzeth, labels = c("Asian", "Black", "Hispanic", "White"))) %>% 
   select(-w1qzeth)
 
-x <- x %>% left_join(x.5, by = 'caseid') %>% 
-  select(- starts_with("col.per")) %>% 
-  select(caseid, sex, race, college, ACT, SAT, col.gpa, school_SAT)
+x <- x %>% left_join(x.5, by = 'caseid')## %>% 
+  ## select(caseid, sex, race, college, ACT, SAT, col.gpa, school_SAT)
 
 ## Always a good idea to do some error checking.
 
@@ -143,7 +150,7 @@ stopifnot(! any(is.na(x$race)))
 # From Last Week
 
 ```{r, warning=FALSE, fig.cap="Note how I created this caption."}
-x %>% ggplot(aes(SAT, col.gpa)) + geom_point() + geom_smooth(method = "lm") + facet_wrap(~ college) +
+x %>% ggplot(aes(SAT, col.gpa)) + geom_point() + geom_smooth(method = "lm") + facet_wrap(~ college, nrow = 7) +
   ggtitle("Relationship Between SAT and College GPA") +
   xlab("Math + Verbal SAT Score") +
   ylab("College GPA After Junior Year")
