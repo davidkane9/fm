@@ -2,7 +2,9 @@
 title: "FM"
 author: David Kane
 date: April 12, 2018
-output: pdf_document
+output:
+  pdf_document:
+    fig_caption: true
 ---
 
 ```{r setup, include=FALSE}
@@ -18,24 +20,16 @@ library(readxl)
 x.1 <- read_stata("nlsfw1icp.dta.zip") %>% 
   zap_formats() %>% 
   zap_labels() %>% 
-  select(caseid, la0102, doc0102,
-         blac9899, hisp9899, asia9899, whit9899) %>% 
+  select(caseid, la0102, doc0102) %>% 
   mutate(school = case_when(la0102 == "1" ~ "Williams",
                             la0102 == "3" ~ "Swarthmore",
                             doc0102 == "1" ~ "Princeton",
                             doc0102 == "2" ~ "Yale")) %>% 
-  select(-la0102, -doc0102) %>%   
-  mutate_at(vars(blac9899, hisp9899, asia9899, whit9899), 
-            function(x){
-              x <- ifelse(x == 999, NA, x)
-              as.numeric(x)/100
-              }) %>% 
-  rename(col.per.black = blac9899, col.per.hispanic = hisp9899,
-         col.per.asian = asia9899, col.per.white = whit9899)
+  select(-la0102, -doc0102)
 
 ## Absurd hack needed to deal with weird Stata attributes
 
-attributes(x.1$caseid) <- NULL
+## attributes(x.1$caseid) <- NULL
 
 ## Deal with school average SAT data, which was not distributed with the other
 ## NLSF data and comes to us directly from Douglas Massey.
@@ -50,6 +44,9 @@ x.id.cross <- read_excel("Case ID Crosswalk.xlsx", col_names = FALSE) %>%
 x.col <- 
   left_join(x.col, x.id.cross, by = "case") %>% 
   select(caseid, w1coll)
+
+## Seems to be a problem that caseid 9277726 does not appear in this data,
+## causing problems later when we try to figure out her school.
 
 x.sat <- read_excel("School SAT Averages.xlsx") %>% 
   rename(w1coll = 'School ID', school_SAT = "Ave SAT")
@@ -141,13 +138,15 @@ stopifnot(! any(is.na(x$sex)))
 stopifnot(! any(is.na(x$race)))
 ```
 
-## Graphic
+## Graphics
 
-```{r, warning=FALSE}
-x %>% ggplot(aes(SAT, col.gpa)) + geom_point() + geom_smooth(method = "lm") + facet_wrap(~ race) +
+# From Last Week
+
+```{r, warning=FALSE, fig.cap="Note how I created this caption."}
+x %>% ggplot(aes(SAT, col.gpa)) + geom_point() + geom_smooth(method = "lm") + facet_wrap(~ college) +
   ggtitle("Relationship Between SAT and College GPA") +
   xlab("Math + Verbal SAT Score") +
-  ylab("College GPA After Sophomore Year")
+  ylab("College GPA After Junior Year")
 ```
 
 
