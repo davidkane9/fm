@@ -1,0 +1,153 @@
+---
+title: "FM"
+author: David Kane
+date: April 12, 2018
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(tidyverse)
+library(haven)
+library(readxl)
+```
+
+```{r, warning=FALSE}
+## Read in relevant data
+
+x.1 <- read_stata("nlsfw1icp.dta.zip") %>% 
+  zap_formats() %>% 
+  zap_labels() %>% 
+  select(caseid, la0102, doc0102,
+         blac9899, hisp9899, asia9899, whit9899) %>% 
+  mutate(school = case_when(la0102 == "1" ~ "Williams",
+                            la0102 == "3" ~ "Swarthmore",
+                            doc0102 == "1" ~ "Princeton",
+                            doc0102 == "2" ~ "Yale")) %>% 
+  select(-la0102, -doc0102) %>%   
+  mutate_at(vars(blac9899, hisp9899, asia9899, whit9899), 
+            function(x){
+              x <- ifelse(x == 999, NA, x)
+              as.numeric(x)/100
+              }) %>% 
+  rename(col.per.black = blac9899, col.per.hispanic = hisp9899,
+         col.per.asian = asia9899, col.per.white = whit9899)
+
+## Absurd hack needed to deal with weird Stata attributes
+
+attributes(x.1$caseid) <- NULL
+
+## Deal with school average SAT data, which was not distributed with the other
+## NLSF data and comes to us directly from Douglas Massey.
+
+x.col <- read_stata("nlsfcolleges.dta") %>% 
+  zap_formats() 
+
+x.id.cross <- read_excel("Case ID Crosswalk.xlsx", col_names = FALSE) %>% 
+  select(- X__1) %>% 
+  rename(case = X__2, caseid = X__3)
+
+x.col <- 
+  left_join(x.col, x.id.cross, by = "case") %>% 
+  select(caseid, w1coll)
+
+x.sat <- read_excel("School SAT Averages.xlsx") %>% 
+  rename(w1coll = 'School ID', school_SAT = "Ave SAT")
+
+x.2 <- left_join(x.col, x.sat, by = "w1coll")
+
+## Note how there is 1 NA in caseid. That strikes me as a problem!
+
+## Bring the first two data sets together.
+
+x <- left_join(x.1, x.2, by = "caseid")
+
+## We don't need both `school` and `w1coll` variables since they capture the
+## same thing. It is also a bad idea to have a categorical variable like w1coll
+## represented by numbers. So, create a new variable `college` which will be the
+## college's name for schools we know (like Yale) and `School.N` (where N is the
+## current value of `w1coll`) for schools we don't know. Then, drop `school` and
+## `w1coll` from x. Then, show a table of `x$college`.
+
+x <- x %>% 
+  mutate(college = case_when(
+    ! is.na(school) ~ school, 
+    is.na(school) & ! is.na(w1coll) ~ paste("School", w1coll, sep = "."),
+    is.na(w1coll) &   is.na(w1coll) ~ as.character(NA))) %>% 
+  select(-school, -w1coll)
+
+## Does it seem sensible that there are schools with more than 300 students in
+## the sample?
+
+## Grab student SAT/ACT data
+
+x.3 <- read_stata("nlsfw3p.dta.zip") %>% 
+  zap_formats() %>%
+  zap_labels() %>% 
+  select(caseid, w3q28, w3q28a, w3q28b, w3q28c) %>% 
+  rename(testing = w3q28, verbal = w3q28a, math = w3q28b, ACT = w3q28c) %>%
+  mutate_at(vars(verbal, math), 
+            function(x){
+              x <- ifelse(x %in% c(997, 998) | x < 200, NA, x)
+              }) %>% 
+  mutate_at(vars(ACT), 
+            function(x){
+              x <- ifelse(x %in% c(97, 98), NA, x)
+              }) %>% 
+  mutate(SAT = math + verbal) %>% 
+  select(-testing, -verbal, -math)
+
+## Grab GPA data. I *think* that this comes from nlsfw5p.dta.zip and that the
+## variables you want are `w5q20aa` and `w5q20ab`. Note that this is tricky
+## stuff, with weirdly formatted character (!) variables gthat include obvious
+## mistakes. I needed trickery like `gsub("\\.","",x)`. I also deleted/trimmed
+## outliers.
+
+x.4 <- read_stata("nlsfw5p.dta.zip") %>% 
+  zap_formats() %>%
+  zap_labels() %>% 
+  select(caseid, w5q20aa, w5q20ab) %>% 
+  na_if("") %>% 
+  mutate_at(vars(w5q20aa, w5q20ab), 
+            function(x) {x <- gsub("\\.","",x)}) %>%  ## Deal with a couple of random "."
+  mutate(w5q20aa = ifelse(w5q20aa %in% as.character(c(1:4)), w5q20aa, NA)) %>% 
+  mutate(col.gpa = as.numeric(paste(w5q20aa, w5q20ab, sep = "."))) %>% 
+  select(caseid, col.gpa)
+
+## Bring stuff together. What happened to that NA?!?
+
+x <- left_join(x, x.3, by = "caseid")
+x <- left_join(x, x.4, by = "caseid")
+
+## Grab race (w1qzeth) and sex data from nlsfw1p.dta.zip. Change both to factor
+## variables with levels as you see in my summary.
+
+x.5 <- read_stata("nlsfw1p.dta.zip") %>%
+  zap_formats() %>% 
+  zap_labels() %>% 
+  select(caseid, sex, w1qzeth) %>% 
+  mutate(sex = factor(sex, labels = c("female", "male")),
+         race = factor(w1qzeth, labels = c("Asian", "Black", "Hispanic", "White"))) %>% 
+  select(-w1qzeth)
+
+x <- x %>% left_join(x.5, by = 'caseid') %>% 
+  select(- starts_with("col.per")) %>% 
+  select(caseid, sex, race, college, ACT, SAT, col.gpa, school_SAT)
+
+## Always a good idea to do some error checking.
+
+stopifnot(nrow(x) == 3924)
+stopifnot(! any(is.na(x$sex)))
+stopifnot(! any(is.na(x$race)))
+```
+
+## Graphic
+
+```{r, warning=FALSE}
+x %>% ggplot(aes(SAT, col.gpa)) + geom_point() + geom_smooth(method = "lm") + facet_wrap(~ race) +
+  ggtitle("Relationship Between SAT and College GPA") +
+  xlab("Math + Verbal SAT Score") +
+  ylab("College GPA After Sophomore Year")
+```
+
+
