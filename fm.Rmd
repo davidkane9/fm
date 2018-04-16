@@ -130,13 +130,13 @@ x <- x %>% left_join(x.5, by = 'caseid') %>%
 ## Always a good idea to do some error checking.
 
 stopifnot(nrow(x) == 3924)
+stopifnot(! any(is.na(x$caseid)))
 stopifnot(! any(is.na(x$sex)))
 stopifnot(! any(is.na(x$race)))
+stopifnot(! any(is.na(x$college)))
+stopifnot(! any(is.na(x$school_SAT)))
 ```
 
-## Graphics
-
-# From Last Week
 
 ```{r, warning=FALSE, fig.cap="Note how I created this caption. You need to set the YAML up correctly to do this."}
 x %>% ggplot(aes(SAT, col.gpa)) + geom_point() + geom_smooth(method = "lm") + facet_wrap(~ race, nrow = 2) +
@@ -145,7 +145,6 @@ x %>% ggplot(aes(SAT, col.gpa)) + geom_point() + geom_smooth(method = "lm") + fa
   ylab("College GPA After Junior Year")
 ```
 
-# Pretty Graphic
 
 ```{r, warning=FALSE, fig.cap="The National Longitudinal Survey of Freshmen collected data from the 28 schools from 1999 to 2004. Approximately equal numbers of white, black, Asian, and Latino freshmen were sampled from each school. SAT scores are either self-reported or calculated from self-reported ACT scores via College Board concordance tables. GPAs are also self-reported."}
 x %>%
