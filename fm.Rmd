@@ -124,8 +124,8 @@ x.5 <- read_stata("nlsfw1p.dta.zip") %>%
   mutate(sex = factor(sex, labels = c("female", "male")),
          race = factor(w1qzeth, labels = c("Asian", "Black", "Hispanic", "White"))) 
 
-x <- x %>% left_join(x.5, by = 'caseid')## %>% 
-  ## select(caseid, sex, race, college, ACT, SAT, col.gpa, school_SAT)
+x <- x %>% left_join(x.5, by = 'caseid') %>% 
+  select(caseid, sex, race, college, ACT, SAT, col.gpa, school_SAT)
 
 ## Always a good idea to do some error checking.
 
