@@ -39,27 +39,20 @@ x.1 <- read_stata("nlsfw1icp.dta.zip") %>%
 x.col <- read_stata("nlsfcolleges.dta") %>% 
   zap_formats() 
 
-x.id.cross <- read_excel("Case ID Crosswalk.xlsx", col_names = FALSE) %>% 
+x.id.cross <- read_excel("Case ID Crosswalk-Corrected.xlsx", col_names = FALSE) %>% 
   select(- X__1) %>% 
   rename(case = X__2, caseid = X__3)
 
-## No row for 9277726 in x.id.cross. Argg! I was fooled because x.id.cross does
-## have 3,924 rows. If we assume that the case in x.col which has no match in
-## x.id.cross is the missing one, we can just assign 9277726 to w1coll 26. So,
-## we do. When we left_join on x.col, we lose the caseid for 9277726 but we know
-## that we w1coll is 26.
+
 
 x.col <- 
   left_join(x.col, x.id.cross, by = "case") %>% 
-  select(caseid, w1coll) %>% 
-  mutate(caseid = ifelse(is.na(caseid), 9277726, caseid))
+  select(caseid, w1coll)
 
 x.sat <- read_excel("School SAT Averages.xlsx") %>% 
   rename(w1coll = 'School ID', school_SAT = "Ave SAT")
 
 x.2 <- left_join(x.col, x.sat, by = "w1coll")
-
-## Note how there is 1 NA in caseid. That strikes me as a problem!
 
 ## Bring the first two data sets together.
 
