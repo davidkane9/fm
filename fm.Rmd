@@ -39,11 +39,13 @@ x.1 <- read_stata("nlsfw1icp.dta.zip") %>%
 x.col <- read_stata("nlsfcolleges.dta") %>% 
   zap_formats() 
 
-x.id.cross <- read_excel("Case ID Crosswalk-Corrected.xlsx", col_names = FALSE) %>% 
+x.id.cross <- 
+  read_excel("Case ID Crosswalk-Corrected.xlsx", col_names = FALSE) %>% 
   select(- X__1) %>% 
   rename(case = X__2, caseid = X__3)
 
-
+## Now that I think this is giving the right answer, it might be useful to
+## combine/condense this code. Also should have some test statements!
 
 x.col <- 
   left_join(x.col, x.id.cross, by = "case") %>% 
@@ -73,7 +75,7 @@ x <- x %>%
   mutate(college = ifelse(college == "School.9", "Howard", college)) 
 
 ## Does it seem sensible that there are schools with more than 300 students in
-## the sample?
+## the sample? This worries me . . .
 
 ## Grab student SAT/ACT data
 
@@ -127,7 +129,8 @@ x.5 <- read_stata("nlsfw1p.dta.zip") %>%
 x <- x %>% left_join(x.5, by = 'caseid') %>% 
   select(caseid, sex, race, college, ACT, SAT, col.gpa, school_SAT)
 
-## Always a good idea to do some error checking.
+## Always a good idea to do some error checking. Note that I haven't done the
+## ACT concordance stuff yet in this version, despite the claims in my captions.
 
 stopifnot(nrow(x) == 3924)
 stopifnot(! any(is.na(x$caseid)))
@@ -139,7 +142,8 @@ stopifnot(! any(is.na(x$school_SAT)))
 
 
 ```{r, warning=FALSE, fig.cap="Note how I created this caption. You need to set the YAML up correctly to do this."}
-x %>% ggplot(aes(SAT, col.gpa)) + geom_point() + geom_smooth(method = "lm") + facet_wrap(~ race, nrow = 2) +
+x %>% ggplot(aes(SAT, col.gpa)) + geom_point() + 
+  geom_smooth(method = "lm") + facet_wrap(~ race, nrow = 2) +
   ggtitle("Relationship Between SAT and College GPA") +
   xlab("Math + Verbal SAT Score") +
   ylab("College GPA After Junior Year")
